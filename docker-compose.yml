@@ -1,70 +1,32 @@
-version: '3.8'
-
 services:
-  # --- TẦNG HẠ TẦNG (Cơ sở dữ liệu & Messaging) ---
+  # ==========================================
+  # 1. HẠ TẦNG DATABASE LÕI
+  # ==========================================
   mysql-db:
     image: mysql:8.0
-    container_name: mysql_noah
     environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: web_store
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: noah_store
     ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5  
-    networks:
-      - noah-network
-
-  postgres-db:
-    image: postgres:15
-    container_name: postgres_noah
-    environment:
-      POSTGRES_PASSWORD: pg_password
-      POSTGRES_DB: finance
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10  
+      - "3307:3306"
     networks:
       - noah-network
 
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: rabbitmq_noah
     ports:
       - "5672:5672"
       - "15672:15672"
     networks:
       - noah-network
 
-  # --- MODULE 2: ORDER PIPELINE ---
-  order-api:
-    build: ./order_api
-    container_name: order_api_service
+  # ==========================================
+  # 2. MODULE 1: ĐỒNG BỘ KHO
+  # ==========================================
+  legacy-adapter:
+    build: ./inventory-sync
     depends_on:
       - mysql-db
-      - rabbitmq
-    networks:
-      - noah-network
-
-  order-worker:
-    build: ./order_worker
-    container_name: order_worker_service
-    depends_on:
-      postgres-db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_started
-      mysql-db:
-        condition: service_healthy
-    networks:
-      - noah-network
     environment:
       - DB_HOST=mysql-db
       - DB_USER=root
@@ -73,6 +35,8 @@ services:
     volumes:
       - ./inventory-sync/input:/app/input
       - ./inventory-sync/processed:/app/processed
+    networks:
+      - noah-network
 
   # ==========================================
   # 3. KONG GATEWAY & REALTIME SERVICE
@@ -80,21 +44,18 @@ services:
   realtime-service:
     build: ./realtime-service
     ports:
-      - "8002:8001"
+      - "8001:8001"
     networks:
       - noah-network
 
   kong-database:
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kong"]
-      interval: 5s
-      timeout: 5s
-      retries: 5  
     image: postgres:13
     environment:
       POSTGRES_USER: kong
       POSTGRES_DB: kong
       POSTGRES_PASSWORD: kong
+    ports:
+      - "5432:5432"
     networks:
       - noah-network
 
@@ -106,33 +67,40 @@ services:
       KONG_PG_HOST: kong-database
       KONG_PG_PASSWORD: kong
     depends_on:
-      kong-database:
-        condition: service_healthy
+      - kong-database
     networks:
       - noah-network
 
   kong:
     image: kong:3.0
     environment:
-      KONG_DATABASE: off
-      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
-  
-      # LOG
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
-
-      # PORT CHUẨN
-      KONG_PROXY_LISTEN: 0.0.0.0:8000
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
-    volumes:
-      - ./realtime-service/kong.yml:/kong/kong.yml      
+      KONG_STREAM_LISTEN: 0.0.0.0:8000
     ports:
       - "8000:8000"   
-      - "8001:8001"   
+      - "8002:8001"   
     depends_on:
-      - realtime-service
+      - kong-database
+    networks:
+      - noah-network
+
+  # ==========================================
+  # 4. MODULE 3: REPORT SERVICE
+  # ==========================================
+  report-service:
+    build: ./report-service
+    ports:
+      - "7000:7000"
+    depends_on:
+      - mysql-db
     networks:
       - noah-network
 
