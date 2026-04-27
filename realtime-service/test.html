@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h1>WebSocket Test</h1>
+
+<script>
+const ws = new WebSocket("ws://localhost:8000/realtime/ws");
+
+ws.onopen = () => {
+    console.log("✅ Connected");
+};
+
+ws.onmessage = (event) => {
+    console.log("📩 Received:", event.data);
+};
+
+ws.onerror = (err) => {
+    console.log("❌ Error:", err);
+};
+
+ws.onclose = () => {
+    console.log("🔌 Disconnected");
+};
+</script>
+
+</body>
+</html>
