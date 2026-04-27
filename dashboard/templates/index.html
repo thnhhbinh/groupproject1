@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NOAH Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 30px;
+        }
+
+        h1 {
+            color: #1f2937;
+        }
+
+        .cards {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            width: 220px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h2 {
+            margin: 0;
+            font-size: 16px;
+            color: #6b7280;
+        }
+
+        .card p {
+            font-size: 26px;
+            font-weight: bold;
+            margin: 10px 0 0;
+            color: #111827;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        th, td {
+            padding: 14px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+        }
+
+        th {
+            background: #111827;
+            color: white;
+        }
+
+        .completed {
+            color: green;
+            font-weight: bold;
+        }
+
+        .pending {
+            color: orange;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📊 NOAH Retail Dashboard</h1>
+
+    <div class="cards">
+        <div class="card">
+            <h2>Total Orders</h2>
+            <p>{{ total_orders }}</p>
+        </div>
+
+        <div class="card">
+            <h2>Completed Orders</h2>
+            <p>{{ completed_orders }}</p>
+        </div>
+
+        <div class="card">
+            <h2>Total Revenue</h2>
+            <p>{{ total_revenue }} VND</p>
+        </div>
+    </div>
+
+    <h2>Order List</h2>
+
+    <table>
+        <tr>
+            <th>Order ID</th>
+            <th>Customer</th>
+            <th>Status</th>
+            <th>Total</th>
+        </tr>
+
+        {% for order in orders %}
+        <tr>
+            <td>{{ order.order_id }}</td>
+            <td>{{ order.customer }}</td>
+            <td>
+                {% if order.status == "Completed" %}
+                    <span class="completed">{{ order.status }}</span>
+                {% else %}
+                    <span class="pending">{{ order.status }}</span>
+                {% endif %}
+            </td>
+            <td>{{ order.total }} VND</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+</body>
+</html>
