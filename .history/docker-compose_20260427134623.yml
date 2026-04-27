@@ -8,7 +8,7 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: noah_store
     ports:
-      - "3307:3306"
+      - "3306:3306"
     networks:
       - noah-network
 
@@ -92,7 +92,11 @@ services:
     networks:
       - noah-network
 
-  # ==========================================
+
+networks:
+  noah-network
+
+    # ==========================================
   # 4. MODULE 3: REPORT SERVICE
   # ==========================================
   report-service:
@@ -102,9 +106,5 @@ services:
     depends_on:
       - mysql-db
     networks:
-      - noah-network
-
-
-networks:
-  noah-network:
+      - noah-network:
     driver: bridge

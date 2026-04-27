@@ -8,7 +8,7 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: noah_store
     ports:
-      - "3307:3306"
+      - "3306:3306"
     networks:
       - noah-network
 
@@ -89,18 +89,6 @@ services:
       - "8002:8001"   
     depends_on:
       - kong-database
-    networks:
-      - noah-network
-
-  # ==========================================
-  # 4. MODULE 3: REPORT SERVICE
-  # ==========================================
-  report-service:
-    build: ./report-service
-    ports:
-      - "7000:7000"
-    depends_on:
-      - mysql-db
     networks:
       - noah-network
 
