@@ -16,12 +16,12 @@ def dashboard(request: Request):
 
     total_orders = len(orders)
     total_revenue = sum(order["total"] for order in orders)
-    completed_orders = sum(1 for order in orders if order["status"] == "Completed")
+    completed_orders = len(order for order in orders if order["status"] == "Completed")
 
     return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={
+        "index.html",
+        {
+            "request": request,
             "orders": orders,
             "total_orders": total_orders,
             "total_revenue": total_revenue,

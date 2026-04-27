@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>📊 Dashboard</h1>
+
+    <h2>Orders</h2>
+    <ul>
+        {% for o in orders %}
+            <li>
+                ID: {{ o.order_id }} -
+                Customer: {{ o.customer }} -
+                Status: {{ o.status }} -
+                Total: {{ o.total }}
+            </li>
+        {% endfor %}
+    </ul>
+
+</body>
+</html>
