@@ -1,0 +1,25 @@
+_format_version: "3.0"
+
+services:
+  - name: realtime-service
+    url: http://realtime-service:8001
+    routes:
+      - name: realtime-route
+        paths:
+          - /realtime
+        strip_path: false
+
+      - name: order-route
+        paths:
+          - /orders
+          - /ws 
+        strip_path: false
+
+plugins:
+  - name: key-auth
+    service: realtime-service
+
+consumers:
+  - username: noah-client
+    keyauth_credentials:
+      - key: noah-secret-key 

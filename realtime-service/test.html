@@ -1,27 +1,48 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <title>Realtime Test</title>
+</head>
 <body>
-<h1>WebSocket Test</h1>
+    <h2>WebSocket Test</h2>
 
-<script>
-const ws = new WebSocket("ws://localhost:8000/realtime/ws");
+    <button onclick="connect()">Connect WS</button>
+    <button onclick="sendOrder()">Send Order</button>
 
-ws.onopen = () => {
-    console.log("✅ Connected");
-};
+    <pre id="log"></pre>
 
-ws.onmessage = (event) => {
-    console.log("📩 Received:", event.data);
-};
+    <script>
+        let ws;
 
-ws.onerror = (err) => {
-    console.log("❌ Error:", err);
-};
+        function log(msg) {
+            document.getElementById("log").innerText += msg + "\n";
+        }
 
-ws.onclose = () => {
-    console.log("🔌 Disconnected");
-};
-</script>
+        function connect() {
+            ws = new WebSocket("ws://localhost:8002/ws"); // bypass Kong
 
+            ws.onopen = () => log("✅ Connected");
+            ws.onmessage = (e) => log("📩 " + e.data);
+            ws.onerror = () => log("❌ Error");
+            ws.onclose = () => log("🔌 Disconnected");
+        }
+
+        function sendOrder() {
+            fetch("http://localhost:8002/orders", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    user_id: 1,
+                    product_id: 101,
+                    quantity: 1
+                })
+            })
+            .then(res => res.json())
+            .then(data => log("🚀 Sent order"))
+            .catch(err => log("❌ API error"));
+        }
+    </script>
 </body>
 </html>
