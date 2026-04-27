@@ -13,21 +13,12 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: noah_store
     ports:
-<<<<<<< HEAD
       - "3307:3306"
     healthcheck:
       test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 10s
       timeout: 5s
       retries: 5
-=======
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5  
->>>>>>> ff31d54523b162f934dbf908e0a28d9a99290747
     networks:
       - noah-network
 
@@ -42,17 +33,10 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-<<<<<<< HEAD
       test: ["CMD-SHELL", "pg_isready -U finance_user -d finance"]
       interval: 10s
       timeout: 5s
       retries: 5
-=======
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10  
->>>>>>> ff31d54523b162f934dbf908e0a28d9a99290747
     networks:
       - noah-network
 
@@ -154,16 +138,12 @@ services:
     build: ./order_worker
     container_name: order_worker_service
     depends_on:
-<<<<<<< HEAD
       mysql-db:
         condition: service_healthy
-=======
->>>>>>> ff31d54523b162f934dbf908e0a28d9a99290747
       postgres-db:
         condition: service_healthy
       rabbitmq:
         condition: service_started
-<<<<<<< HEAD
     networks:
       - noah-network
 
@@ -174,83 +154,8 @@ services:
     environment:
       - MYSQL_HOST=mysql-db
       - PG_HOST=postgres-db
-=======
-      mysql-db:
-        condition: service_healthy
->>>>>>> ff31d54523b162f934dbf908e0a28d9a99290747
     networks:
       - noah-network
-    environment:
-      - DB_HOST=mysql-db
-      - DB_USER=root
-      - DB_PASSWORD=root
-      - DB_NAME=noah_store
-    volumes:
-      - ./inventory-sync/input:/app/input
-      - ./inventory-sync/processed:/app/processed
-
-  # ==========================================
-  # 3. KONG GATEWAY & REALTIME SERVICE
-  # ==========================================
-  realtime-service:
-    build: ./realtime-service
-    ports:
-      - "8002:8001"
-    networks:
-      - noah-network
-
-  kong-database:
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kong"]
-      interval: 5s
-      timeout: 5s
-      retries: 5  
-    image: postgres:13
-    environment:
-      POSTGRES_USER: kong
-      POSTGRES_DB: kong
-      POSTGRES_PASSWORD: kong
-    networks:
-      - noah-network
-
-  kong-migration:
-    image: kong:3.0
-    command: kong migrations bootstrap
-    environment:
-      KONG_DATABASE: postgres
-      KONG_PG_HOST: kong-database
-      KONG_PG_PASSWORD: kong
-    depends_on:
-      kong-database:
-        condition: service_healthy
-    networks:
-      - noah-network
-
-  kong:
-    image: kong:3.0
-    environment:
-      KONG_DATABASE: off
-      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
-  
-      # LOG
-      KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
-      KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-
-      # PORT CHUẨN
-      KONG_PROXY_LISTEN: 0.0.0.0:8000
-      KONG_ADMIN_LISTEN: 0.0.0.0:8001
-    volumes:
-      - ./realtime-service/kong.yml:/kong/kong.yml      
-    ports:
-      - "8000:8000"   
-      - "8001:8001"   
-    depends_on:
-      - realtime-service
-    networks:
-      - noah-network
-
 
 networks:
   noah-network:
