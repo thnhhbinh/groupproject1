@@ -4,16 +4,26 @@ services:
   # ==========================================
   mysql-db:
     image: mysql:8.0
+    container_name: mysql-db
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: noah_store
     ports:
       - "3307:3306"
+    volumes:
+      - ./db-init/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 600s
     networks:
       - noah-network
 
   rabbitmq:
     image: rabbitmq:3-management
+    container_name: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -22,6 +32,7 @@ services:
 
   postgres-db:
     image: postgres:15
+    container_name: postgres-db
     environment:
       POSTGRES_PASSWORD: pg_password
       POSTGRES_DB: finance
@@ -31,10 +42,11 @@ services:
       - noah-network
 
   # ==========================================
-  # 2. MODULE 1: ĐỒNG BỘ KHO (Legacy Adapter)
+  # 2. MODULE 1: ĐỒNG BỘ KHO
   # ==========================================
   legacy-adapter:
     build: ./inventory-sync
+    container_name: legacy-adapter
     depends_on:
       - mysql-db
     environment:
@@ -42,9 +54,13 @@ services:
       - DB_USER=root
       - DB_PASSWORD=root
       - DB_NAME=noah_store
+      - INPUT_DIR=/app/input
+      - PROCESSED_DIR=/app/processed
+      - POLL_SECONDS=5
     volumes:
       - ./inventory-sync/input:/app/input
       - ./inventory-sync/processed:/app/processed
+    restart: unless-stopped
     networks:
       - noah-network
 
@@ -53,6 +69,9 @@ services:
   # ==========================================
   order-api:
     build: ./order_api
+    container_name: order-api
+    ports:
+      - "8080:8000"
     depends_on:
       - mysql-db
       - rabbitmq
@@ -61,15 +80,11 @@ services:
 
   order-worker:
     build: ./order_worker
+    container_name: order-worker
     depends_on:
+      - mysql-db
       - postgres-db
       - rabbitmq
-      - mysql-db
-    environment:
-      - DB_HOST=mysql-db
-      - DB_USER=root
-      - DB_PASSWORD=root
-      - DB_NAME=noah_store
     networks:
       - noah-network
 
@@ -78,6 +93,7 @@ services:
   # ==========================================
   report-service:
     build: ./report-service
+    container_name: report-service
     ports:
       - "7000:7000"
     depends_on:
@@ -86,17 +102,22 @@ services:
       - noah-network
 
   # ==========================================
-  # 5. KONG GATEWAY & REALTIME SERVICE
+  # 5. REALTIME SERVICE
   # ==========================================
   realtime-service:
     build: ./realtime-service
+    container_name: realtime-service
     ports:
       - "8001:8001"
     networks:
       - noah-network
 
+  # ==========================================
+  # 6. KONG GATEWAY
+  # ==========================================
   kong-database:
     image: postgres:13
+    container_name: kong-database
     environment:
       POSTGRES_USER: kong
       POSTGRES_DB: kong
@@ -108,6 +129,7 @@ services:
 
   kong-migration:
     image: kong:3.0
+    container_name: kong-migration
     command: kong migrations bootstrap
     environment:
       KONG_DATABASE: postgres
@@ -120,6 +142,7 @@ services:
 
   kong:
     image: kong:3.0
+    container_name: kong
     environment:
       KONG_DATABASE: postgres
       KONG_PG_HOST: kong-database
@@ -130,12 +153,12 @@ services:
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
-      KONG_STREAM_LISTEN: 0.0.0.0:8000
     ports:
-      - "8000:8000"   
-      - "8002:8001"   
+      - "8000:8000"
+      - "8002:8001"
     depends_on:
       - kong-database
+      - kong-migration
     networks:
       - noah-network
 

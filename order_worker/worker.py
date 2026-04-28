@@ -1,41 +1,51 @@
 import pika, json, time, mysql.connector, psycopg2
 
-def process_order(ch, method, properties, body):
-    order_data = json.loads(body)
-    print(f"[*] Đang xử lý đơn hàng: {order_data['order_id']}")
+def get_mysql_conn():
+    return mysql.connector.connect(host='mysql-db', user='root', password='root_password', database='web_store')
 
-    # 1. Giả lập độ trễ xử lý thanh toán (1-2s) [cite: 70]
-    time.sleep(2)
+def get_postgres_conn():
+    return psycopg2.connect(host='postgres-db', user='postgres', password='pg_password', dbname='finance')
+
+def process_order(ch, method, properties, body):
+    order = json.loads(body)
+    order_id = order['order_id']
+    print(f"[>] Đang xử lý đơn hàng ID: {order_id}")
 
     try:
-        # 2. Ghi vào PostgreSQL (Hệ thống Tài chính) [cite: 71]
-        conn_pg = psycopg2.connect(host="postgres-db", database="finance", user="postgres", password="pg_password")
-        cur_pg = conn_pg.cursor()
-        cur_pg.execute(
-            "INSERT INTO finance_transactions (order_id, user_id, amount) VALUES (%s, %s, %s)",
-            (order_data['order_id'], order_data['user_id'], order_data['quantity'] * 100)
-        )
-        conn_pg.commit()
+        # PostgreSQL: Xuất hiện dòng dữ liệu mới
+        pg_conn = get_postgres_conn()
+        pg_cursor = pg_conn.cursor()
+        pg_cursor.execute("INSERT INTO transactions (order_id, status) VALUES (%s, 'SUCCESS')", (order_id,))
+        pg_conn.commit()
+        pg_cursor.close()
+        pg_conn.close()
 
-        # 3. Cập nhật trạng thái MySQL sang COMPLETED [cite: 72]
-        conn_my = mysql.connector.connect(host="mysql-db", database="web_store", user="root", password="root_password")
-        cur_my = conn_my.cursor()
-        cur_my.execute("UPDATE orders SET status='COMPLETED' WHERE id=%s", (order_data['order_id'],))
-        conn_my.commit()
+        # MySQL: Đơn hàng đổi trạng thái
+        my_conn = get_mysql_conn()
+        my_cursor = my_conn.cursor()
+        my_cursor.execute("UPDATE orders SET status = 'COMPLETED' WHERE id = %s", (order_id,))
+        my_conn.commit()
+        my_cursor.close()
+        my_conn.close()
 
-        # 4. Gửi ACK (Xác nhận) để xóa tin nhắn khỏi hàng đợi [cite: 73]
+        print(f"[V] Xong! Đã chốt đơn ID: {order_id}")
+        
+        # RabbitMQ: Queue giảm đi 1 message
         ch.basic_ack(delivery_tag=method.delivery_tag)
-        print(f"[v] Đã hoàn thành đơn hàng {order_data['order_id']}")
-
+        
     except Exception as e:
-        print(f"[!] Lỗi: {e}")
+        print(f"[X] Lỗi xử lý: {e}")
 
-# Kết nối RabbitMQ và lắng nghe order_queue [cite: 67, 69]
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-channel = connection.channel()
-channel.queue_declare(queue='order_queue', durable=True)
-channel.basic_qos(prefetch_count=1)
-channel.basic_consume(queue='order_queue', on_message_callback=process_order)
+def main():
+    print("[*] Đang chờ RabbitMQ khởi động...")
+    time.sleep(10) 
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+    channel.queue_declare(queue='order_queue', durable=True)
+    channel.basic_consume(queue='order_queue', on_message_callback=process_order)
 
-print('[*] Đang chờ đơn hàng...')
-channel.start_consuming()
+    print("[*] Worker đang thức 24/7 chờ đơn hàng từ RabbitMQ...")
+    channel.start_consuming()
+
+if __name__ == '__main__':
+    main()
