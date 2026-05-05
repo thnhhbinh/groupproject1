@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOAH Retail Storefront</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+        
+        body {
+            margin: 0;
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            padding: 20px 50px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            padding: 40px 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h2 {
+            margin: 0 0 10px 0;
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .price {
+            font-size: 28px;
+            font-weight: 800;
+            color: #38bdf8;
+            margin-bottom: 5px;
+        }
+
+        .stock {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stock span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+        }
+
+        .stock.out span {
+            background: #ef4444;
+        }
+
+        .buy-btn {
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            margin-top: auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .buy-btn:hover {
+            opacity: 0.9;
+        }
+
+        .buy-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px);
+            transition: transform 0.3s;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+
+        .modal h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.2);
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            border-color: #38bdf8;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn-cancel {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .btn-confirm {
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        /* Notifications & Loaders */
+        .notification {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #22c55e;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 1000;
+            font-weight: 600;
+        }
+
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .notification.error {
+            background: #ef4444;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            position: absolute;
+            left: calc(50% - 10px);
+            top: calc(50% - 10px);
+            opacity: 0;
+        }
+
+        .loading .text {
+            opacity: 0;
+        }
+
+        .loading .loader {
+            opacity: 1;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>NOAH Storefront</h1>
+    </header>
+
+    <div class="container">
+        <div class="grid" id="productGrid">
+            <!-- Products will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Checkout Form Modal -->
+    <div class="modal-overlay" id="checkoutModal">
+        <div class="modal">
+            <h2>🛒 Thông tin nhận hàng</h2>
+            <div class="form-group">
+                <label>Mã Khách Hàng (Tự động cấp)</label>
+                <input type="number" id="formUserId" value="1" readonly style="background: rgba(0,0,0,0.5);">
+            </div>
+            <div class="form-group">
+                <label>Họ và Tên</label>
+                <input type="text" id="formName" placeholder="Ví dụ: Nguyễn Văn A">
+            </div>
+            <div class="form-group">
+                <label>Số điện thoại</label>
+                <input type="text" id="formPhone" placeholder="Ví dụ: 0987654321">
+            </div>
+            <div class="form-group">
+                <label>Địa chỉ giao hàng</label>
+                <input type="text" id="formAddress" placeholder="Ví dụ: 123 Lê Lợi, Đà Nẵng">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeModal()">Hủy</button>
+                <button class="btn btn-confirm" id="confirmBtn" onclick="submitOrder()">Xác nhận Mua</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        const API_URL = "http://localhost:8000";
+        const API_KEY = "noah-secret-key";
+        let currentProductId = null;
+        let currentBtn = null;
+
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_URL}/products?apikey=${API_KEY}`);
+                const data = await response.json();
+                renderProducts(data.products);
+            } catch (error) {
+                console.error("Failed to load products", error);
+            }
+        }
+
+        function renderProducts(products) {
+            const grid = document.getElementById("productGrid");
+            grid.innerHTML = "";
+            
+            products.forEach(p => {
+                const isOut = p.stock <= 0;
+                
+                const card = document.createElement("div");
+                card.className = "card";
+                card.innerHTML = `
+                    <h2>${p.name || 'Product ' + p.id}</h2>
+                    <div class="price">${Number(p.price).toLocaleString()} VND</div>
+                    <div class="stock ${isOut ? 'out' : ''}">
+                        <span></span> ${isOut ? 'Out of Stock' : p.stock + ' in stock'}
+                    </div>
+                    <button class="buy-btn" onclick="openModal(${p.id}, this)" ${isOut ? 'disabled' : ''}>
+                        <span class="text">${isOut ? 'Out of Stock' : 'Buy Now'}</span>
+                        <div class="loader"></div>
+                    </button>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function openModal(productId, btn) {
+            currentProductId = productId;
+            currentBtn = btn;
+            document.getElementById("checkoutModal").classList.add("active");
+            document.getElementById("formUserId").value = Math.floor(Math.random() * 1000) + 1;
+        }
+
+        function closeModal() {
+            document.getElementById("checkoutModal").classList.remove("active");
+            currentProductId = null;
+            currentBtn = null;
+        }
+
+        async function submitOrder() {
+            if (!currentProductId || !currentBtn) return;
+            
+            const userId = document.getElementById("formUserId").value;
+            let name = document.getElementById("formName").value;
+            let phone = document.getElementById("formPhone").value;
+            
+            // Auto-fill for quick demo if left empty
+            if(!name) name = "Khách Hàng Ẩn Danh";
+            if(!phone) phone = "0123456789";
+
+            closeModal();
+            
+            // Set Loading state on the product card button
+            currentBtn.classList.add("loading");
+            currentBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/orders?apikey=${API_KEY}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        user_id: parseInt(userId),
+                        product_id: currentProductId,
+                        quantity: 1
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification(`Thành công! Cảm ơn ${name} đã mua hàng.`);
+                    loadProducts(); // Refresh stock
+                } else {
+                    showNotification(result.detail || "Mua hàng thất bại!", true);
+                    loadProducts();
+                }
+            } catch (error) {
+                showNotification("Network error", true);
+            } finally {
+                currentBtn.classList.remove("loading");
+                if(!currentBtn.innerText.includes('Out')) {
+                    currentBtn.disabled = false;
+                }
+            }
+        }
+
+        function showNotification(msg, isError = false) {
+            const notif = document.getElementById("notification");
+            notif.innerText = msg;
+            notif.className = "notification " + (isError ? "error " : "") + "show";
+            
+            setTimeout(() => {
+                notif.classList.remove("show");
+            }, 3000);
+        }
+
+        // Initial Load
+        loadProducts();
+        
+        // Auto-refresh stock every 5 seconds
+        setInterval(loadProducts, 5000);
+    </script>
+</body>
+</html>

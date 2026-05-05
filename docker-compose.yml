@@ -148,6 +148,17 @@ services:
     networks:
       - noah-network
 
+  # ==========================================
+  # 7. OPTION 5: STOREFRONT
+  # ==========================================
+  storefront:
+    build: ./storefront
+    container_name: storefront
+    ports:
+      - "3000:80"
+    networks:
+      - noah-network
+
 networks:
   noah-network:
     driver: bridge

@@ -76,4 +76,27 @@ def create_order(order: dict):
     return {"message": "Order received", "order_id": order_id}
 @app.get("/")
 def root():
-    return {"message": "Order API running"}    
+    return {"message": "Order API running"}
+
+@app.get("/products")
+def get_products():
+    try:
+        conn = get_mysql_conn()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, name, price, stock FROM products")
+        products = cursor.fetchall()
+        
+        # Sync stock directly from Redis to show true real-time availability
+        for p in products:
+            redis_stock = redis_client.get(f"product:{p['id']}:stock")
+            if redis_stock is not None:
+                p['stock'] = int(redis_stock)
+                
+        return {"products": products}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'cursor' in locals() and cursor:
+           cursor.close()
+        if 'conn' in locals() and conn:   
+           conn.close()    

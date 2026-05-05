@@ -7,6 +7,7 @@ services:
       - name: order-route
         paths:
           - /orders
+          - /products
         strip_path: false  
 
   - name: report-service
@@ -26,10 +27,30 @@ services:
 
 plugins:
   - name: key-auth
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - apikey
+      exposed_headers:
+        - X-Auth-Token
+      credentials: true
+      max_age: 3600
 
   - name: rate-limiting
     config:
-      minute: 10
+      minute: 1000
       policy: local
 
 consumers:
