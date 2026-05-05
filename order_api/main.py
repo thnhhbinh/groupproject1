@@ -1,7 +1,10 @@
 from fastapi import FastAPI, HTTPException
 import pika, json, mysql.connector
+import redis
 
 app = FastAPI()
+
+redis_client = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 
 def get_mysql_conn():
     return mysql.connector.connect(
@@ -9,9 +12,22 @@ def get_mysql_conn():
     )
 
 @app.post("/orders")
-async def create_order(order: dict):
+def create_order(order: dict):
     if order.get("quantity", 0) <= 0:
         raise HTTPException(status_code=400, detail="Số lượng phải > 0")
+
+    product_id = order.get('product_id', 1)
+    quantity = order['quantity']
+
+    try:
+        new_stock = redis_client.decrby(f"product:{product_id}:stock", quantity)
+        if new_stock < 0:
+            redis_client.incrby(f"product:{product_id}:stock", quantity)
+            raise HTTPException(status_code=400, detail="Out of Stock")
+    except redis.exceptions.RedisError as e:
+        raise HTTPException(status_code=500, detail=f"Redis error: {e}")
+    except HTTPException:
+        raise
 
     # Lưu MySQL trạng thái PENDING
     try:

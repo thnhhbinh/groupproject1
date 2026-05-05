@@ -7,6 +7,8 @@ from pathlib import Path
 
 import mysql.connector
 from mysql.connector import Error
+from mysql.connector.constants import ClientFlag
+import redis
 
 
 INPUT_DIR = Path(os.getenv("INPUT_DIR", "/app/input"))
@@ -18,7 +20,10 @@ DB_CONFIG = {
     "user": os.getenv("DB_USER", "root"),
     "password": os.getenv("DB_PASSWORD", "root"),
     "database": os.getenv("DB_NAME", "noah_store"),
+    "client_flags": [ClientFlag.FOUND_ROWS],
 }
+
+redis_client = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 
 
 def log_info(message):
@@ -116,6 +121,11 @@ def process_csv_file(file_path):
                     log_warning(f"Line {line_number}: product_id={product_id} not found.")
                     skipped_records += 1
                     continue
+
+                try:
+                    redis_client.set(f"product:{product_id}:stock", quantity)
+                except Exception as e:
+                    log_warning(f"Failed to set stock in Redis for product_id={product_id}: {e}")
 
                 processed_records += 1
 

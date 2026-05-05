@@ -30,6 +30,14 @@ services:
     networks:
       - noah-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - noah-network
+
   postgres-db:
     image: postgres:15
     container_name: postgres-db
@@ -49,6 +57,7 @@ services:
     container_name: legacy-adapter
     depends_on:
       - mysql-db
+      - redis
     environment:
       - DB_HOST=mysql-db
       - DB_USER=root
@@ -75,6 +84,7 @@ services:
     depends_on:
       - mysql-db
       - rabbitmq
+      - redis
     networks:
       - noah-network
 
