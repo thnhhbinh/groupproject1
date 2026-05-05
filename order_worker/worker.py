@@ -1,7 +1,7 @@
 import pika, json, time, mysql.connector, psycopg2
 
 def get_mysql_conn():
-    return mysql.connector.connect(host='mysql-db', user='root', password='root_password', database='web_store')
+    return mysql.connector.connect(host='mysql-db', user='root', password='root', database='noah_store')
 
 def get_postgres_conn():
     return psycopg2.connect(host='postgres-db', user='postgres', password='pg_password', dbname='finance')
@@ -34,15 +34,30 @@ def process_order(ch, method, properties, body):
         ch.basic_ack(delivery_tag=method.delivery_tag)
         
     except Exception as e:
-        print(f"[X] Lỗi xử lý: {e}")
+       print(f"[X] Lỗi xử lý: {e}")
+       ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+
 
 def main():
     print("[*] Đang chờ RabbitMQ khởi động...")
-    time.sleep(10) 
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+
+    while True:
+        try:
+            connection = pika.BlockingConnection(
+                pika.ConnectionParameters(host='rabbitmq')
+            )
+            print("[✓] Đã kết nối RabbitMQ")
+            break
+        except pika.exceptions.AMQPConnectionError:
+            print("[...] RabbitMQ chưa sẵn sàng, đợi 5s...")
+            time.sleep(5)
+
     channel = connection.channel()
     channel.queue_declare(queue='order_queue', durable=True)
-    channel.basic_consume(queue='order_queue', on_message_callback=process_order)
+    channel.basic_consume(
+        queue='order_queue',
+        on_message_callback=process_order
+    )
 
     print("[*] Worker đang thức 24/7 chờ đơn hàng từ RabbitMQ...")
     channel.start_consuming()

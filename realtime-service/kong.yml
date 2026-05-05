@@ -1,25 +1,37 @@
 _format_version: "3.0"
 
 services:
+  - name: order-service
+    url: http://order-api:8000
+    routes:
+      - name: order-route
+        paths:
+          - /orders
+        strip_path: false  
+
+  - name: report-service
+    url: http://report-service:7000
+    routes:
+      - name: report-route
+        paths:
+          - /report
+
   - name: realtime-service
     url: http://realtime-service:8001
     routes:
       - name: realtime-route
         paths:
-          - /realtime
-        strip_path: false
-
-      - name: order-route
-        paths:
-          - /orders
-          - /ws 
-        strip_path: false
+          - /ws
 
 plugins:
   - name: key-auth
-    service: realtime-service
+
+  - name: rate-limiting
+    config:
+      minute: 10
+      policy: local
 
 consumers:
   - username: noah-client
     keyauth_credentials:
-      - key: noah-secret-key 
+      - key: noah-secret-key
