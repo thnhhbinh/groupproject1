@@ -22,6 +22,7 @@ services:
       - name: realtime-route
         paths:
           - /ws
+        strip_path: false
 
 plugins:
   - name: key-auth

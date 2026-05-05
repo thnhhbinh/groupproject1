@@ -70,6 +70,14 @@
             color: orange;
             font-weight: bold;
         }
+
+        @keyframes flash {
+            0% { background-color: #fca5a5; }
+            100% { background-color: white; }
+        }
+        .flash-animation {
+            animation: flash 0.8s ease-out;
+        }
     </style>
 </head>
 <body>
@@ -77,14 +85,19 @@
     <h1>📊 NOAH Retail Dashboard</h1>
 
     <div class="cards">
-        <div class="card">
+        <div class="card" id="total-card">
             <h2>Total Orders</h2>
-            <p>{{ total_orders }}</p>
+            <p id="total-orders">{{ total_orders }}</p>
         </div>
 
         <div class="card">
             <h2>Completed Orders</h2>
             <p>{{ completed_orders }}</p>
+        </div>
+
+        <div class="card" id="pending-card">
+            <h2>Pending Orders</h2>
+            <p id="pending-orders">0</p>
         </div>
 
         <div class="card">
@@ -119,5 +132,33 @@
         {% endfor %}
     </table>
 
+    <script>
+        const pendingOrdersEl = document.getElementById("pending-orders");
+        const totalOrdersEl = document.getElementById("total-orders");
+        const pendingCard = document.getElementById("pending-card");
+        const totalCard = document.getElementById("total-card");
+        
+        function flashElement(cardEl) {
+            cardEl.classList.remove("flash-animation");
+            void cardEl.offsetWidth; // trigger reflow
+            cardEl.classList.add("flash-animation");
+        }
+
+        const ws = new WebSocket("ws://localhost:8000/ws?apikey=noah-secret-key");
+        ws.onopen = function() {
+            console.log("Connected to Realtime Dashboard");
+        };
+        ws.onmessage = function(event) {
+            let data = JSON.parse(event.data);
+            if (data.status === "PENDING") {
+                let currentPending = parseInt(pendingOrdersEl.innerText) || 0;
+                let currentTotal = parseInt(totalOrdersEl.innerText) || 0;
+                pendingOrdersEl.innerText = currentPending + 1;
+                totalOrdersEl.innerText = currentTotal + 1;
+                flashElement(pendingCard);
+                flashElement(totalCard);
+            }
+        };
+    </script>
 </body>
 </html>

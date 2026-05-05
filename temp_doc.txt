@@ -1,0 +1,216 @@
+ĐỒ ÁN TỐT NGHIỆP MÔN HỌC 
+MÔN HỌC: CMU-CS 445 SYSTEM INTEGRATION PRACTICES
+ĐỀ TÀI: XÂY DỰNG HỆ THỐNG "UNIFIED COMMERCE" CHO NOAH RETAIL
+Hình thức: Nhóm 4-5 Sinh viên.
+Thời gian thực hiện: 4 Tuần.
+Mục tiêu: Vận dụng kiến thức từ Lab 1 đến Lab 6 để giải quyết bài toán doanh nghiệp thực tế.
+
+1. BỐI CẢNH & "NỖI ĐAU" (THE STORY)
+NOAH Retail là một chuỗi bán lẻ điện tử tầm trung tại Miền Trung, khởi nghiệp từ năm 2010. Sau 15 năm phát triển nóng, NOAH hiện sở hữu 5 cửa hàng vật lý và một kênh bán hàng Online (Web & App) đang tăng trưởng mạnh.
+Tuy nhiên, hạ tầng CNTT của họ phát triển theo kiểu "chắp vá". Mỗi bộ phận mua sắm phần mềm riêng lẻ vào các thời điểm khác nhau, dẫn đến tình trạng "Ốc đảo dữ liệu" (Data Silos).
+Hệ thống Kho (Legacy Warehouse): Hệ thống cũ chạy AS/400. Không có API. Chỉ xuất được file CSV tồn kho (inventory.csv) vào lúc 3h sáng.
+Hệ thống Bán hàng (Web Store - MySQL): Website MySQL hiện đại. Tuy nhiên, do không kết nối với Kho, nó thường xuyên bán lố hàng (Overselling) vì không biết tồn kho thực tế
+Hệ thống Tài chính (Finance - PostgreSQL): Hệ thống mới chuyển đổi, nhân viên phải nhập liệu thủ công đơn hàng từ Web sang đây, gây chậm trễ.
+Nhóm đóng vai trò là Solution Architects. Các bạn phải xây dựng một hệ thống Middleware (Trung gian) để tự động hóa dòng chảy dữ liệu giữa 3 hệ thống trên và xây dựng một Dashboard để chứng minh sự kết nối đó.
+
+2. KIẾN TRÚC KỸ THUẬT YÊU CẦU (CORE REQUIREMENTS)
+Nhóm phải thiết kế hệ thống chạy trên Docker Compose bao gồm các thành phần sau:
+ TẦNG HẠ TẦNG (INFRASTRUCTURE)
+MySQL 8.0: Lưu trữ dữ liệu Bán hàng (Web Store).
+PostgreSQL 15: Lưu trữ dữ liệu Tài chính (Finance).
+RabbitMQ 3: Message Broker trung chuyển tin nhắn.
+Kong Gateway: Cổng bảo mật.
+MODULE 1: ĐỒNG BỘ KHO (LEGACY ADAPTER)
+Mục tiêu: Đồng bộ tồn kho từ hệ thống cũ (Legacy) sang hệ thống bán hàng hiện đại mà không làm treo hệ thống.
+1. Đặc tả Đầu vào (Input)
+Nguồn dữ liệu: Một thư mục trên ổ cứng (Volume) được chia sẻ với máy Host, ví dụ: /app/input.
+Định dạng file: File CSV tên là inventory.csv được sinh ra ngẫu nhiên (bởi script admin_data_generator.py).
+Cấu trúc dữ liệu: product_id, quantity (Ví dụ: 101, 50).
+Tần suất: File có thể xuất hiện bất cứ lúc nào (giả lập việc hệ thống cũ xuất file định kỳ).
+2. Yêu cầu Xử lý (Processing Logic)
+Cơ chế Polling: Service phải liên tục kiểm tra thư mục đầu vào (ví dụ: 5-10 giây/lần). Không được dùng cơ chế kích hoạt thủ công.
+Validate dữ liệu (Data Cleaning):
+Nếu quantity < 0: Bỏ qua dòng đó, ghi log cảnh báo.
+Nếu dòng thiếu dữ liệu hoặc sai định dạng: Bỏ qua.
+Cập nhật Database: Với mỗi dòng hợp lệ, thực hiện câu lệnh SQL UPDATE vào bảng products trong MySQL.
+Dọn dẹp (Cleanup): Sau khi xử lý xong, bắt buộc phải di chuyển file sang thư mục /app/processed.
+3. Đặc tả Đầu ra (Output)
+Database: Số lượng tồn kho trong MySQL thay đổi tương ứng.
+File System: Thư mục /input rỗng, file xuất hiện bên /processed với tên cũ hoặc được đổi tên (ví dụ: inventory_timestamp.csv).
+Log: Terminal hiển thị: [INFO] Processed 500 records. Skipped 5 invalid records.
+ Gợi mở từ Lab cũ
+Nhớ lại Lab 3 (File Transfer): Các em đã dùng thư viện os và shutil để quét và di chuyển file như thế nào?
+Nhớ lại Lab 1 (Docker Volume): Làm sao để Container nhìn thấy file nằm trên máy thật của em? (Cấu hình volumes trong docker-compose.yml).
+Vấn đề Dirty Data trong Lab 2: Xử lý try-catch khi đọc dữ liệu
+
+MODULE 2: XỬ LÝ ĐƠN HÀNG (ORDER PIPELINE)
+Mục tiêu: Xử lý hàng nghìn đơn hàng cùng lúc mà không làm sập Database (High Availability), đảm bảo tính toàn vẹn dữ liệu (Data Consistency). Module này chia làm 2 thành phần nhỏ.
+THÀNH PHẦN 2A: ORDER API (PRODUCER)
+1. Đặc tả Đầu vào (Input)
+Giao thức: HTTP POST.
+Endpoint: /api/orders.
+Payload JSON: {"user_id": 1, "product_id": 101, "quantity": 2}.
+2. Yêu cầu Xử lý (Processing Logic)
+Validate: Kiểm tra dữ liệu đầu vào (số lượng phải > 0).
+Ghi nhận sơ bộ: Insert đơn hàng vào MySQL với trạng thái PENDING (Đang chờ xử lý).
+Publish: Đẩy toàn bộ cục JSON đơn hàng vào RabbitMQ (Queue tên: order_queue).
+Phản hồi nhanh: Trả về kết quả cho Client ngay lập tức, không chờ xử lý xong.
+3. Đặc tả Đầu ra (Output)
+HTTP Response: 202 Accepted hoặc 200 OK kèm {"message": "Order received", "order_id": 123}.
+RabbitMQ: Queue có thêm 1 message mới.
+THÀNH PHẦN 2B: ORDER WORKER (CONSUMER)
+1. Đặc tả Đầu vào (Input)
+Nguồn: Lắng nghe liên tục từ RabbitMQ Queue order_queue.
+2. Yêu cầu Xử lý (Processing Logic)
+Consume: Lấy message ra khỏi hàng đợi.
+Giả lập độ trễ: Cho hệ thống ngủ (sleep) khoảng 1-2 giây để giả lập việc xử lý thanh toán phức tạp.
+Ghi hệ thống đích: Insert giao dịch vào PostgreSQL (Hệ thống Tài chính).
+Cập nhật trạng thái: Quay lại MySQL, update trạng thái đơn hàng từ PENDING sang COMPLETED (hoặc SYNCED).
+Acknowledge (ACK): Gửi xác nhận cho RabbitMQ để xóa tin nhắn (Đảm bảo tin nhắn không bị mất nếu Worker chết giữa chừng).
+3. Đặc tả Đầu ra (Output)
+MySQL: Đơn hàng đổi trạng thái.
+PostgreSQL: Xuất hiện dòng dữ liệu mới.
+RabbitMQ: Queue giảm đi 1 message.
+Gợi mở từ Lab cũ
+Nhớ lại Lab 4 (Direct API): Cách viết một API nhận POST Request bằng Flask/FastAPI?
+Nhớ lại Lab 5 (Messaging):
+Sự khác biệt giữa Code send.py (Producer) và receive.py (Consumer).
+Tại sao trong Lab 5 chúng ta dùng pika?
+Cơ chế ACK là gì? Nếu quên gửi ACK thì chuyện gì xảy ra với hàng đợi?
+ MODULE 3: TRUNG TÂM CHỈ HUY (DASHBOARD)
+Mục tiêu: Viết trang web dashboard tạo ra một "Góc nhìn toàn cảnh" (Single View) bằng cách ghép nối dữ liệu từ nhiều nguồn rời rạc (Data Stitching).
+1. Đặc tả Đầu vào (Input)
+Nguồn 1: Database MySQL (Thông tin chi tiết đơn hàng, Sản phẩm).
+Nguồn 2: Database PostgreSQL (Thông tin thanh toán, Khách hàng).
+2. Yêu cầu Xử lý (Processing Logic)
+Kết nối đa nguồn: Service này phải mở kết nối đồng thời đến cả MySQL và PostgreSQL .
+Query & Aggregation:
+Lấy danh sách đơn hàng từ MySQL.
+Lấy danh sách thanh toán từ Postgres.
+Data Stitching (Khâu dữ liệu): Dùng code (Python Pandas hoặc vòng lặp) để khớp 2 nguồn dữ liệu này dựa trên order_id.
+Tính toán: Tính tổng doanh thu theo từng khách hàng.
+3. Đặc tả Đầu ra (Output)
+API Endpoint: GET /api/report.
+Format JSON:
+Gợi mở từ Lab cũ
+Nhớ lại Lab 2 (ETL):
+Các em đã dùng pandas.read_sql để đọc từ SQLite. Bây giờ hãy đổi driver để đọc từ MySQL/Postgres.
+Lệnh pd.merge dùng để làm gì? (Gợi ý: Giống VLOOKUP trong Excel hoặc JOIN trong SQL).
+MODULE 4: BẢO MẬT (GATEWAY)
+Mục tiêu: Ẩn giấu toàn bộ kiến trúc bên dưới, chỉ mở một cửa duy nhất cho người dùng.
+1. Yêu cầu Cấu hình (Configuration)
+Service & Route:
+Map đường dẫn /orders -> Trỏ về Container Order API.
+Map đường dẫn /report -> Trỏ về Container Report Service.
+Plugins bắt buộc:
+Key Authentication: Client phải gửi header apikey: noah-secret-key mới được đi qua.
+Rate Limiting: Giới hạn mỗi Client chỉ được gửi tối đa 10 request/phút (Chống Spam).
+CORS (Tùy chọn): Nếu làm Frontend riêng thì cần bật cái này.
+2. Đặc tả Đầu ra (Output)
+Truy cập http://localhost:8000/orders (Cổng Gateway) -> Thành công.
+Truy cập http://localhost:5000/orders (Cổng trực tiếp của Service) -> Phải bị chặn (Không được expose port này trong docker-compose.yml).
+ Gợi mở từ Lab cũ
+Nhớ lại Lab 6 (API Gateway):
+File kong.yml có cấu trúc thế nào?
+Khái niệm Reverse Proxy: Tại sao Client không được biết IP thật của Backend?
+Xem lại cách cấu hình services, routes và plugins trong Lab 6.
+
+3. TÍNH ĐĂNG MỞ RỘNG 
+ OPTION 1: NOTIFICATION SYSTEM (HỆ THỐNG THÔNG BÁO TỰ ĐỘNG)
+Mục tiêu: Tăng trải nghiệm khách hàng bằng cách thông báo trạng thái đơn hàng tức thời (Real-time Feedback loop).
+1. Kiến trúc tích hợp
+Vị trí: Nằm sau Module 2B (Worker Service).
+Trigger: Ngay sau khi Worker insert thành công vào PostgreSQL (Finance) và update trạng thái SYNCED cho MySQL.
+2. Yêu cầu xử lý
+Cơ chế: Worker không được bị "treo" để chờ gửi email. Việc gửi thông báo phải được thực hiện bất đồng bộ (Async) hoặc Fire-and-Forget.
+Nội dung thông báo:
+"Xin chào User [ID], đơn hàng #[Order_ID] trị giá $[Total] đã được xác nhận thanh toán thành công lúc [Time]."
+Kênh gửi (Chọn 1):
+Email: Sử dụng SMTP (Gmail/SendGrid/Mailgun).
+Chat: Gửi tin nhắn vào Telegram Bot hoặc Slack Channel của nhóm (giả lập tin nhắn cho khách).
+3. Tiêu chí nghiệm thu (Acceptance Criteria)
+Có ảnh chụp Email/Tin nhắn nhận được trùng khớp với đơn hàng vừa đặt.
+Log của Worker hiển thị: [INFO] Order #123 synced. Notification sent to user.
+ OPTION 2: SMART OVERSELLING PROTECTION (CHỐNG BÁN LỐ BẰNG REDIS)
+Mục tiêu: Giải quyết bài toán "High Concurrency" (Hàng nghìn người cùng tranh mua 1 sản phẩm). Database quan hệ (MySQL) sẽ bị chậm do khóa (Lock), dẫn đến bán lố.
+1. Kiến trúc tích hợp
+Công nghệ: Thêm 1 container Redis vào docker-compose.yml.
+Vị trí: Nằm giữa Client và Module 2A (Order API).
+2. Yêu cầu xử lý
+Bước 1 (Sync): Khi Module 1 quét file CSV tồn kho, ngoài việc update MySQL, nó phải nạp (set) số lượng tồn kho vào Redis Key (Ví dụ: product:101:stock = 50).
+Bước 2 (Check): Khi có Request đặt hàng:
+API KHÔNG query MySQL để check tồn kho.
+API gọi lệnh DECR (Decrement Atomic) trong Redis.
+Nếu giá trị trả về >= 0 -> Đẩy vào Queue RabbitMQ.
+Nếu giá trị trả về < 0 -> Trả về lỗi 400 Out of Stock ngay lập tức.
+Lý do: Redis xử lý trên RAM, tốc độ nhanh gấp 100 lần MySQL.
+3. Tiêu chí nghiệm thu
+Chứng minh được trường hợp: Tồn kho = 1. Gửi 5 request đồng thời (bằng JMeter hoặc Postman Runner). Chỉ 1 request thành công, 4 request kia bị từ chối. Tồn kho trong Redis về 0.
+ OPTION 3: AI INSIGHT (PHÂN TÍCH DOANH THU THÔNG MINH)
+Mục tiêu: Biến Dashboard từ "Báo cáo chết" thành "Trợ lý ảo".
+1. Kiến trúc tích hợp
+Vị trí: Nằm trong Module 3 (Report Service).
+Integration: Gọi API của bên thứ 3 (OpenAI GPT-3.5/4 hoặc Google Gemini).
+2. Yêu cầu xử lý
+Input: Service tổng hợp số liệu (Ví dụ: "Tổng doanh thu hôm nay: 50 triệu. Top sản phẩm: Giày Nike. Tỷ lệ đơn lỗi: 2%").
+Prompt Engineering: Gửi đoạn text trên cho AI với yêu cầu: "Đóng vai chuyên gia tài chính, hãy nhận xét ngắn gọn về tình hình kinh doanh này và đưa ra 1 lời khuyên."
+Output: Hiển thị đoạn văn trả lời của AI lên Dashboard.
+3. Lưu ý quan trọng
+Cấm: Không được gửi toàn bộ danh sách 20,000 đơn hàng lên AI (tốn tiền và lộ dữ liệu). Chỉ gửi số liệu đã tổng hợp (Aggregated Data).
+Failover: Nếu API AI bị lỗi (hết quota), Dashboard vẫn phải hiện số liệu bình thường.
+ OPTION 4: REAL-TIME DASHBOARD (WEBSOCKET)
+Mục tiêu: Loại bỏ thao tác nhấn F5 để xem dữ liệu mới.
+1. Kiến trúc tích hợp
+Công nghệ: WebSocket (Socket.io hoặc Python Websockets).
+Vị trí: Kết nối 2 chiều giữa Dashboard (Frontend) và Backend.
+2. Yêu cầu xử lý
+Cơ chế Pub/Sub:
+Khi Module 2A nhận đơn hàng mới -> Phát sự kiện (Emit) new_order.
+Dashboard đang lắng nghe sự kiện new_order -> Tự động tăng biến đếm "Số đơn chờ xử lý" +1.
+Hiệu ứng UI: Con số nhấp nháy hoặc đổi màu khi cập nhật.
+3. Tiêu chí nghiệm thu
+Mở Dashboard trên 1 màn hình.
+Dùng Postman bắn đơn hàng liên tục.
+Số trên Dashboard tự nhảy múa mà không cần reload trang.
+
+ OPTION 5: CLIENT STOREFRONT (TRANG KHÁCH HÀNG)
+Mục tiêu: Mô phỏng trọn vẹn quy trình E-commerce (End-to-End).
+1. Kiến trúc tích hợp
+Vị trí: Container Frontend riêng biệt (chạy React/Vue/Angular hoặc HTML thuần), map port 3000.
+Flow: Client Storefront -> Gọi qua Kong Gateway -> Vào Order API.
+2. Yêu cầu xử lý
+Giao diện:
+Trang chủ: Load danh sách sản phẩm từ API (Lấy từ MySQL).
+Có nút "Add to Cart" hoặc "Buy Now".
+Form nhập thông tin User.
+UX: Khi bấm mua -> Hiện Loading -> Hiện thông báo thành công "Cảm ơn bạn đã mua hàng".
+3. Tiêu chí nghiệm thu
+Demo quy trình mua hàng mượt mà trên trình duyệt thay vì thao tác bằng dòng lệnh/Postman.
+LỜI KHUYÊN CHO SINH VIÊN KHI CHỌN 
+Nhóm mạnh về thuật toán/Backend: Nên chọn Smart Overselling (Redis). Đây là bài toán khó và "ghi điểm" cực mạnh trong mắt nhà tuyển dụng Backend.
+Nhóm mạnh về Frontend/Sản phẩm: Nên chọn Client Storefront hoặc Real-time Socket.
+Nhóm thích xu hướng mới: Chọn AI Insight.
+
+4. TÀI NGUYÊN & HỖ TRỢ (STARTER KIT)
+Script sinh dữ liệu: admin_data_generator.py (Dùng để tạo file SQL 20.000 đơn hàng và file CSV rác để test).
+Code mẫu: Các đoạn code kết nối DB cơ bản (Python/SQLAlchemy).
+Lời khuyên: Đừng chỉ copy-paste code Lab cũ. Hãy dùng chúng làm nền tảng và nâng cấp chúng lên mức "Production-ready" (Xử lý lỗi, Retry connection, Log file).
+CÁC THỬ THÁCH KỸ THUẬT (CHALLENGES)
+Dữ liệu lớn (Pagination Challenge):
+Bảng Orders có sẵn 20,000 dòng.
+Cấm: Code Dashboard/API dùng SELECT * (sẽ bị treo).
+Yêu cầu: Phải dùng kỹ thuật Phân trang (LIMIT, OFFSET).
+Dữ liệu bẩn (Dirty Data Challenge):
+File CSV chứa 5% dữ liệu lỗi.
+Nếu Service Import bị dừng hoạt động khi gặp dòng lỗi => Trừ 50% điểm Module 1.
+Yêu cầu: Code không được crash (dừng chạy). Phải ghi log lỗi và tiếp tục chạy.
+Khởi động lạnh (Retry Challenge):
+Database khi khởi động mất 10-20s. Code Python chạy lên ngay sẽ bị lỗi kết nối.
+Yêu cầu: Viết hàm retry_connection() (thử lại sau 5s) để Service tự phục hồi.
+
+5. MA TRẬN ĐÁNH GIÁ (GRADING RUBRIC)
+
+LỊCH TRÌNH NỘP BÀI
+Tuần 1: Nộp Sơ đồ kiến trúc & Phân công nhóm.
+Tuần 4: Nộp Source Code (Git), Video Demo và Báo cáo Tổng kết (Portfolio).
+LỜI KHUYÊN: Đồ án này là sự tổng hợp của 6 bài Lab. Hãy mở lại code Lab cũ, copy các đoạn xử lý File, xử lý Queue và ghép chúng lại. Chúc các nhóm thành công!

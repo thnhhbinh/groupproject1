@@ -67,6 +67,11 @@ def create_order(order: dict):
     )
     connection.close()
 
+    try:
+        redis_client.publish("new_orders", json.dumps({"order_id": order_id, "status": "PENDING"}))
+    except Exception as e:
+        print(f"Failed to publish to redis: {e}")
+
     # HTTP Response 200 OK chuẩn đặc tả
     return {"message": "Order received", "order_id": order_id}
 @app.get("/")

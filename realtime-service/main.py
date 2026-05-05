@@ -3,6 +3,8 @@ from typing import List
 from pydantic import BaseModel
 import json
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+import redis.asyncio as redis
 
 app = FastAPI()
 app.add_middleware(
@@ -14,6 +16,21 @@ app.add_middleware(
 )
 
 clients: List[WebSocket] = []
+redis_client = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(redis_listener())
+
+async def redis_listener():
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe('new_orders')
+    try:
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                await broadcast(message['data'])
+    except Exception as e:
+        print(f"Redis listener error: {e}")
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
